@@ -1,0 +1,1341 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FYERS 1-Min Open=High / Open=Low Scanner — Large & Mid Cap + Commodities</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', ' system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #0b0f19;
+      color: #e2e8f0;
+    }
+    .mono-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-variant-numeric: tabular-nums;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-indigo-500 selection:text-white">
+
+  <!-- Top Navigation & Live Status Header -->
+  <header class="border-b border-slate-800/80 bg-slate-900/90 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+      <!-- Brand & Title -->
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 font-bold mono-num text-sm shadow-inner">
+          OHL
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-base font-bold tracking-tight text-white">FYERS 1-Min OHL Scanner</h1>
+            <span id="dataSourceBadge" class="px-2 py-0.5 text-[11px] font-medium rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
+              Demo 09:16 Snapshot
+            </span>
+          </div>
+          <p class="text-xs text-slate-400">1-Minute Post-Market Open Scanner (Open = High &amp; Open = Low) • Large Cap, Mid Cap &amp; MCX</p>
+        </div>
+      </div>
+
+      <!-- Right Controls: Clock, Auto-Trigger, API Config, Python Helper -->
+      <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+        <!-- IST Clock & 09:16 Trigger Status -->
+        <div class="flex items-center gap-2 bg-slate-950/90 border border-slate-800 px-3 py-1.5 rounded-lg text-xs">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" id="clockDot"></span>
+          <span class="text-slate-400">IST:</span>
+          <span id="istClock" class="mono-num font-semibold text-slate-100">--:--:--</span>
+          <span class="text-slate-600">|</span>
+          <label class="flex items-center gap-1.5 cursor-pointer select-none" title="Automatically fetch quotes exactly at 09:16:00 IST (NSE) or 09:01:00 IST (MCX)">
+            <input type="checkbox" id="autoScanToggle" class="rounded bg-slate-800 border-slate-700 text-indigo-500 focus:ring-0 w-3.5 h-3.5" checked />
+            <span class="text-slate-300 font-medium">Auto 09:16 Scan</span>
+          </label>
+        </div>
+
+        <!-- Refresh / Scan Now Button -->
+        <button id="scanNowBtn" type="button" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-medium text-xs flex items-center gap-1.5 transition shadow-sm">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          <span>Scan Now</span>
+        </button>
+
+        <!-- Fyers Credentials Modal Button -->
+        <button id="openApiModalBtn" type="button" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-medium text-xs flex items-center gap-1.5 transition">
+          <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+          <span>Fyers API Setup</span>
+        </button>
+
+        <!-- Manage Symbols Button -->
+        <button id="openWatchlistModalBtn" type="button" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-medium text-xs flex items-center gap-1.5 transition">
+          <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+          <span>Symbols (<span id="totalUniverseCount">45</span>)</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-4 space-y-4">
+
+    <!-- Filter & Strategy Controls Bar -->
+    <section class="bg-slate-900/70 border border-slate-800/90 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3">
+      <!-- Segment Filter Tabs -->
+      <div class="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Market Segment Filter">
+        <button type="button" data-segment="ALL_EQ" class="segment-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition bg-indigo-600 text-white shadow-sm">
+          Large + Mid Cap (<span id="countAllEq">0</span>)
+        </button>
+        <button type="button" data-segment="LARGE" class="segment-btn px-3 py-1.5 rounded-lg text-xs font-medium transition bg-slate-800/80 text-slate-300 hover:bg-slate-800">
+          Large Cap • Nifty 50 (<span id="countLarge">0</span>)
+        </button>
+        <button type="button" data-segment="MID" class="segment-btn px-3 py-1.5 rounded-lg text-xs font-medium transition bg-slate-800/80 text-slate-300 hover:bg-slate-800">
+          Mid Cap • Nifty Midcap (<span id="countMid">0</span>)
+        </button>
+        <button type="button" data-segment="COMMODITY" class="segment-btn px-3 py-1.5 rounded-lg text-xs font-medium transition bg-slate-800/80 text-slate-300 hover:bg-slate-800">
+          MCX Commodities (<span id="countComm">0</span>)
+        </button>
+      </div>
+
+      <!-- Right Filter Controls: Polarity Mode, Tolerance, Search -->
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Signal Interpretation Mode -->
+        <div class="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1">
+          <span class="text-[11px] text-slate-400">Signal Tag:</span>
+          <select id="polaritySelect" aria-label="Signal Tag Polarity" class="bg-transparent text-xs font-medium text-slate-200 focus:outline-none cursor-pointer">
+            <option value="prompt">Prompt Mode (Open=High: Bullish | Open=Low: Bearish)</option>
+            <option value="classic">Classic OHL (Open=Low: Bullish | Open=High: Bearish)</option>
+          </select>
+        </div>
+
+        <!-- Match Tolerance -->
+        <div class="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1">
+          <span class="text-[11px] text-slate-400">Tolerance:</span>
+          <select id="toleranceSelect" aria-label="Match Tolerance Percentage" class="bg-transparent text-xs font-medium text-slate-200 focus:outline-none cursor-pointer mono-num">
+            <option value="0">0.00% (Exact Open=High/Low)</option>
+            <option value="0.03">0.03% (Tick Buffer)</option>
+            <option value="0.05">0.05% (Near Open)</option>
+            <option value="0.10">0.10% (Wide Buffer)</option>
+          </select>
+        </div>
+
+        <!-- Search Input -->
+        <div class="relative">
+          <input type="text" id="searchInput" placeholder="Search symbol (e.g. SBIN, GOLD)..." class="w-44 sm:w-52 bg-slate-950 border border-slate-800 rounded-lg pl-7 pr-2.5 py-1 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500" />
+          <svg class="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- Summary KPI Strip -->
+    <section class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 flex items-center justify-between">
+        <div>
+          <p class="text-[11px] uppercase tracking-wider text-slate-400 font-medium">Scanned Universe</p>
+          <p id="kpiTotalScanned" class="text-xl font-bold mono-num text-white mt-0.5">0</p>
+        </div>
+        <div class="text-right">
+          <span id="kpiSegmentLabel" class="text-[11px] text-indigo-400 font-medium">Large + Mid Cap</span>
+          <p id="kpiLastScanTime" class="text-[11px] text-slate-500 mono-num mt-0.5">09:16:02 IST</p>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 flex items-center justify-between">
+        <div>
+          <p class="text-[11px] uppercase tracking-wider text-slate-400 font-medium">Open = High Matches</p>
+          <p id="kpiOpenHighCount" class="text-xl font-bold mono-num text-emerald-400 mt-0.5">0</p>
+        </div>
+        <span id="kpiOpenHighBadge" class="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+          Bullish Prob.
+        </span>
+      </div>
+
+      <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 flex items-center justify-between">
+        <div>
+          <p class="text-[11px] uppercase tracking-wider text-slate-400 font-medium">Open = Low Matches</p>
+          <p id="kpiOpenLowCount" class="text-xl font-bold mono-num text-rose-400 mt-0.5">0</p>
+        </div>
+        <span id="kpiOpenLowBadge" class="px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/30">
+          Bearish Prob.
+        </span>
+      </div>
+
+      <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 flex items-center justify-between">
+        <div>
+          <p class="text-[11px] uppercase tracking-wider text-slate-400 font-medium">1-Min Trigger Window</p>
+          <p id="kpiTriggerCountdown" class="text-sm font-semibold mono-num text-amber-300 mt-1">09:16:00 IST</p>
+        </div>
+        <button id="exportCsvBtn" type="button" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium transition" title="Export matching Open=High and Open=Low stocks to CSV">
+          Export CSV
+        </button>
+      </div>
+    </section>
+
+    <!-- Main Two-Column OHL Scanner Grid -->
+    <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      
+      <!-- COLUMN 1: OPEN = HIGH -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl flex flex-col overflow-hidden">
+        <div id="openHighHeader" class="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-emerald-950/20">
+          <div class="flex items-center gap-2.5">
+            <span id="openHighDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="text-sm font-bold text-white tracking-wide">OPEN = HIGH</h2>
+                <span id="openHighBiasPill" class="px-2 py-0.5 text-[11px] font-semibold rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  Bullish Probability
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-0.5">Opening price equals session High after 1st minute</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" id="copyOpenHighBtn" class="px-2 py-1 rounded bg-slate-800/90 hover:bg-slate-700 text-[11px] text-slate-300 border border-slate-700 transition" title="Copy Fyers symbols for TradingView / Fyers Watchlist">
+              Copy Symbols
+            </button>
+            <span id="openHighCountPill" class="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 mono-num text-xs font-bold text-white">0</span>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto flex-1">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b border-slate-800/80 text-[11px] uppercase tracking-wider text-slate-400 bg-slate-950/40">
+                <th class="py-2.5 px-3 font-medium">Symbol</th>
+                <th class="py-2.5 px-2.5 font-medium text-right">Open = High</th>
+                <th class="py-2.5 px-2.5 font-medium text-right">Low</th>
+                <th class="py-2.5 px-2.5 font-medium text-right">LTP</th>
+                <th class="py-2.5 px-2.5 font-medium text-right">Chg %</th>
+                <th class="py-2.5 px-3 font-medium text-right">Vol</th>
+              </tr>
+            </thead>
+            <tbody id="openHighTableBody" class="divide-y divide-slate-800/60 text-xs">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- COLUMN 2: OPEN = LOW -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl flex flex-col overflow-hidden">
+        <div id="openLowHeader" class="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-rose-950/20">
+          <div class="flex items-center gap-2.5">
+            <span id="openLowDot" class="w-2.5 h-2.5 rounded-full bg-rose-400"></span>
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="text-sm font-bold text-white tracking-wide">OPEN = LOW</h2>
+                <span id="openLowBiasPill" class="px-2 py-0.5 text-[11px] font-semibold rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                  Bearish Probability
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-0.5">Opening price equals session Low after 1st minute</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" id="copyOpenLowBtn" class="px-2 py-1 rounded bg-slate-800/90 hover:bg-slate-700 text-[11px] text-slate-300 border border-slate-700 transition" title="Copy Fyers symbols for TradingView / Fyers Watchlist">
+              Copy Symbols
+            </button>
+            <span id="openLowCountPill" class="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 mono-num text-xs font-bold text-white">0</span>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto flex-1">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b border-slate-800/80 text-[11px] uppercase tracking-wider text-slate-400 bg-slate-950/40">
+                <th class="py-2.5 px-3 font-medium">Symbol</th>
+                <th class="py-2.5 px-2.5 font-medium text-right">Open = Low</th>
+                <th class="py-2.5 px-2.5 font-medium text-right">High</th>
+                <th class="py-2.5 px-2.5 font-medium text-right">LTP</th>
+                <th class="py-2.5 px-2.5 font-medium text-right">Chg %</th>
+                <th class="py-2.5 px-3 font-medium text-right">Vol</th>
+              </tr>
+            </thead>
+            <tbody id="openLowTableBody" class="divide-y divide-slate-800/60 text-xs">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Collapsible Full Universe Table (Non-Matching / Neutral Stocks) -->
+    <section class="bg-slate-900/50 border border-slate-800/80 rounded-xl overflow-hidden">
+      <button type="button" id="toggleNeutralBtn" class="w-full px-4 py-2.5 flex items-center justify-between text-xs font-medium text-slate-300 hover:bg-slate-800/50 transition">
+        <span class="flex items-center gap-2">
+          <svg id="neutralChevron" class="w-4 h-4 text-slate-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          <span>View Remaining Scanned Instruments (Open ≠ High &amp; Open ≠ Low)</span>
+          <span id="neutralCountBadge" class="px-2 py-0.5 rounded bg-slate-800 text-slate-400 mono-num text-[11px]">0</span>
+        </span>
+        <span class="text-[11px] text-slate-400">Click to expand / collapse</span>
+      </button>
+      <div id="neutralSectionBody" class="hidden border-t border-slate-800 overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="border-b border-slate-800/80 text-[11px] uppercase tracking-wider text-slate-400 bg-slate-950/40">
+              <th class="py-2 px-3 font-medium">Symbol</th>
+              <th class="py-2 px-2.5 font-medium">Segment</th>
+              <th class="py-2 px-2.5 font-medium text-right">Open</th>
+              <th class="py-2 px-2.5 font-medium text-right">High</th>
+              <th class="py-2 px-2.5 font-medium text-right">Low</th>
+              <th class="py-2 px-2.5 font-medium text-right">LTP</th>
+              <th class="py-2 px-2.5 font-medium text-right">Chg %</th>
+              <th class="py-2 px-3 font-medium text-right">Volume</th>
+            </tr>
+          </thead>
+          <tbody id="neutralTableBody" class="divide-y divide-slate-800/50 text-xs">
+            <!-- Populated by JS -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Toast Notification -->
+  <div id="toastBox" class="fixed bottom-4 right-4 z-50 hidden bg-slate-800 border border-slate-600 text-slate-100 px-4 py-2.5 rounded-xl shadow-xl text-xs font-medium flex items-center gap-2">
+    <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+    <span id="toastText">Notification</span>
+  </div>
+
+  <!-- MODAL 1: FYERS API v3 CONNECTION & PYTHON SCRIPT -->
+  <div id="apiModal" class="fixed inset-0 z-40 hidden bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl">
+      <div class="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <h3 class="text-sm font-bold text-white">Fyers API v3 Configuration &amp; Python CLI</h3>
+          <span class="px-2 py-0.5 text-[10px] font-semibold rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">API v3 Ready</span>
+        </div>
+        <button type="button" id="closeApiModalBtn" class="text-slate-400 hover:text-white p-1">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Modal Tabs -->
+      <div class="px-5 pt-3 border-b border-slate-800 flex gap-4 text-xs font-medium">
+        <button type="button" id="tabBrowserApiBtn" class="pb-2.5 border-b-2 border-indigo-500 text-indigo-400">
+          1. Browser Direct Connection
+        </button>
+        <button type="button" id="tabPythonCodeBtn" class="pb-2.5 border-b-2 border-transparent text-slate-400 hover:text-slate-200">
+          2. Local Python Script (fyers-apiv3)
+        </button>
+        <button type="button" id="tabCloudHostBtn" class="pb-2.5 border-b-2 border-transparent text-emerald-400 hover:text-emerald-300">
+          3. Free Cloud Hosting &amp; Auto-Auth
+        </button>
+      </div>
+
+      <!-- Tab 1: Browser API Credentials -->
+      <div id="tabBrowserApiContent" class="p-5 space-y-4 text-xs">
+        <div class="bg-slate-950/90 border border-slate-800 rounded-lg p-3 text-slate-300 leading-relaxed">
+          Enter your Fyers API v3 credentials to query <code class="text-indigo-300 mono-num">GET https://api-t1.fyers.in/data/quotes</code> in batches of 50 symbols. Credentials stay strictly in your browser memory / local storage.
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label for="fyersAppId" class="block text-slate-300 font-medium mb-1">App ID (Client ID)</label>
+            <input type="text" id="fyersAppId" placeholder="e.g. XXXXXXXX-100" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 mono-num focus:outline-none focus:border-indigo-500" />
+          </div>
+          <div>
+            <label for="fyersEndpointUrl" class="block text-slate-300 font-medium mb-1">Quotes Endpoint (or Local Proxy)</label>
+            <input type="text" id="fyersEndpointUrl" value="https://api-t1.fyers.in/data/quotes" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 mono-num focus:outline-none focus:border-indigo-500" />
+          </div>
+        </div>
+
+        <div>
+          <label for="fyersAccessToken" class="block text-slate-300 font-medium mb-1">Access Token</label>
+          <input type="password" id="fyersAccessToken" placeholder="Paste your daily Fyers v3 access_token..." class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 mono-num focus:outline-none focus:border-indigo-500" />
+          <p class="text-[11px] text-slate-400 mt-1">Header sent: <code class="mono-num text-slate-300">Authorization: &lt;app_id&gt;:&lt;access_token&gt;</code></p>
+        </div>
+
+        <div id="apiStatusAlert" class="hidden rounded-lg p-2.5 text-xs border"></div>
+
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800">
+          <button type="button" id="useDemoDataBtn" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-medium transition">
+            Load Simulated 09:16 Data
+          </button>
+          <div class="flex items-center gap-2">
+            <button type="button" id="saveAndFetchApiBtn" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition">
+              Save &amp; Fetch Live Quotes
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Standalone Python Script -->
+      <div id="tabPythonCodeContent" class="hidden p-5 space-y-3 text-xs">
+        <p class="text-slate-300">
+          If your browser blocks direct cross-origin requests (CORS) to <code class="mono-num text-indigo-300">api-t1.fyers.in</code>, run this lightweight Python script with <code class="mono-num text-indigo-300">pip install fyers-apiv3</code>. It waits until 09:16:00 IST, fetches all Large &amp; Mid Cap quotes in one batch, and prints/serves the Open=High and Open=Low lists:
+        </p>
+        <div class="relative">
+          <pre id="pythonCodeBlock" class="bg-slate-950 border border-slate-800 rounded-lg p-3 overflow-x-auto mono-num text-[11px] text-slate-200 max-h-64">from fyers_apiv3 import fyersModel
+import time, datetime
+
+APP_ID = "YOUR_APP_ID-100"       # Replace with your Fyers App ID
+ACCESS_TOKEN = "YOUR_TOKEN"      # Replace with your daily Access Token
+
+# Large & Mid Cap NSE Universe (up to 50 symbols per Quotes API call)
+SYMBOLS = [
+    "NSE:RELIANCE-EQ", "NSE:TCS-EQ", "NSE:HDFCBANK-EQ", "NSE:ICICIBANK-EQ",
+    "NSE:INFY-EQ", "NSE:SBIN-EQ", "NSE:BHARTIARTL-EQ", "NSE:LT-EQ",
+    "NSE:TATAMOTORS-EQ", "NSE:AXISBANK-EQ", "NSE:SUNPHARMA-EQ", "NSE:NTPC-EQ",
+    "NSE:BAJFINANCE-EQ", "NSE:M&M-EQ", "NSE:BEL-EQ", "NSE:TRENT-EQ",
+    "NSE:PERSISTENT-EQ", "NSE:COFORGE-EQ", "NSE:DIXON-EQ", "NSE:POLYCAB-EQ",
+    "NSE:FEDERALBNK-EQ", "NSE:INDHOTEL-EQ", "NSE:CUMMINSIND-EQ", "NSE:LUPIN-EQ",
+    "NSE:VOLTAS-EQ", "NSE:MAXHEALTH-EQ", "NSE:OBEROIRLTY-EQ", "NSE:ASHOKLEY-EQ"
+]
+
+fyers = fyersModel.FyersModel(client_id=APP_ID, is_async=False, token=ACCESS_TOKEN, log_path="")
+
+def scan_ohl():
+    resp = fyers.quotes(data={"symbols": ",".join(SYMBOLS)})
+    if resp.get("s") != "ok":
+        print("Error:", resp)
+        return
+    open_high, open_low = [], []
+    for item in resp.get("d", []):
+        v = item.get("v", {})
+        sym = item.get("n", v.get("symbol", ""))
+        o, h, l, ltp, chp = v.get("open_price"), v.get("high_price"), v.get("low_price"), v.get("lp"), v.get("chp")
+        if o and h and o == h:
+            open_high.append((sym, o, l, ltp, chp))
+        if o and l and o == l:
+            open_low.append((sym, o, h, ltp, chp))
+
+    print(f"\n=== OPEN = HIGH ({len(open_high)}) ===")
+    for s, o, l, ltp, chp in open_high:
+        print(f"{s:20s} | Open=High: {o:8.2f} | Low: {l:8.2f} | LTP: {ltp:8.2f} ({chp:+.2f}%)")
+
+    print(f"\n=== OPEN = LOW ({len(open_low)}) ===")
+    for s, o, h, ltp, chp in open_low:
+        print(f"{s:20s} | Open=Low:  {o:8.2f} | High:{h:8.2f} | LTP: {ltp:8.2f} ({chp:+.2f}%)")
+
+if __name__ == "__main__":
+    scan_ohl()</pre>
+          <button type="button" id="copyPythonBtn" class="absolute top-2.5 right-2.5 px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-medium">
+            Copy Python Code
+          </button>
+        </div>
+      </div>
+
+      <!-- Tab 3: Free Cloud Hosting & Zero-Touch Auto-Authentication -->
+      <div id="tabCloudHostContent" class="hidden p-5 space-y-3 text-xs max-h-[75vh] overflow-y-auto">
+        <div class="bg-emerald-950/30 border border-emerald-500/30 rounded-lg p-3 text-slate-200 space-y-2">
+          <div class="font-bold text-emerald-300 flex flex-wrap items-center justify-between gap-2">
+            <span>GitHub Pages + GitHub Actions (No Render Needed) &amp; Cloud Auto-Auth</span>
+            <div class="flex items-center gap-1.5">
+              <button type="button" id="loadGithubJsonBtn" class="px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-semibold transition">
+                Use GitHub Pages Feed
+              </button>
+              <button type="button" id="triggerBackendAutoAuthBtn" class="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold transition">
+                Test /api/quotes Auto-Auth
+              </button>
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-300 leading-relaxed">
+            <strong>Option 1 (100% GitHub — Free):</strong> Host this file as <code class="mono-num text-emerald-300">index.html</code> on <strong>GitHub Pages</strong>, and let a scheduled <strong>GitHub Action</strong> auto-login with Fyers TOTP + PIN at 09:16 AM IST and publish quotes to your repo.<br/>
+            <strong>Option 2 (Python Server):</strong> Run <code class="mono-num text-emerald-300">app.py</code> on GitHub Codespaces, PythonAnywhere, or Render to serve <code class="mono-num text-emerald-300">/api/quotes</code> dynamically.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-[11px]">
+          <div class="bg-slate-950 border border-slate-800 rounded-lg p-2.5">
+            <p class="font-bold text-indigo-300 mb-1">Step 1: Enable Fyers TOTP</p>
+            <p class="text-slate-400">Go to <strong>myaccount.fyers.in &rarr; Manage Account &rarr; External 2FA TOTP</strong>. Copy the secret 32-character <strong>TOTP Key</strong>.</p>
+          </div>
+          <div class="bg-slate-950 border border-slate-800 rounded-lg p-2.5">
+            <p class="font-bold text-indigo-300 mb-1">Step 2: Create API App</p>
+            <p class="text-slate-400">In <strong>myapi.fyers.in/dashboard</strong>, create an app and copy your <code class="mono-num">App ID (-100)</code> and <code class="mono-num">Secret ID</code>.</p>
+          </div>
+          <div class="bg-slate-950 border border-slate-800 rounded-lg p-2.5">
+            <p class="font-bold text-indigo-300 mb-1">Step 3: Deploy Free Server</p>
+            <p class="text-slate-400">Push the provided <code class="mono-num">fyers_ohl_cloud_server.zip</code> to GitHub &amp; connect to <strong>Render.com</strong> with your env variables.</p>
+          </div>
+        </div>
+
+        <div class="relative">
+          <pre id="cloudServerCodeBlock" class="bg-slate-950 border border-slate-800 rounded-lg p-3 overflow-x-auto mono-num text-[11px] text-slate-200 max-h-48"># app.py — Free Cloud Server with Daily Auto-Authentication (TOTP + Token Cache)
+import os, json, base64, datetime, time
+from urllib.parse import urlparse, parse_qs
+import pyotp, requests
+from flask import Flask, jsonify, send_file, request
+from fyers_apiv3 import fyersModel
+
+app = Flask(__name__)
+TOKEN_FILE = "fyers_daily_token.json"
+
+def get_auto_token():
+    today = datetime.date.today().strftime("%Y-%m-%d")
+    if os.path.exists(TOKEN_FILE):
+        data = json.load(open(TOKEN_FILE))
+        if data.get("date") == today and data.get("access_token"):
+            return data["access_token"]
+
+    b64 = lambda s: base64.b64encode(str(s).encode("ascii")).decode("ascii")
+    fy_id = os.environ["FYERS_USER_ID"]
+    app_id = os.environ["FYERS_APP_ID"]        # e.g. XXXXXXXX-100
+    secret_id = os.environ["FYERS_SECRET_ID"]
+    totp_key = os.environ["FYERS_TOTP_KEY"]
+    pin = os.environ["FYERS_PIN"]
+    redirect_uri = os.environ.get("FYERS_REDIRECT_URI", "https://127.0.0.1:5000/")
+
+    # 1. Send Login OTP
+    r1 = requests.post("https://api-t2.fyers.in/vagator/v2/send_login_otp_v2",
+                       json={"fy_id": b64(fy_id), "app_id": "2"}).json()
+    if datetime.datetime.now().second % 30 > 27:
+        time.sleep(4)
+    # 2. Verify TOTP
+    otp = pyotp.TOTP(totp_key).now()
+    r2 = requests.post("https://api-t2.fyers.in/vagator/v2/verify_otp",
+                       json={"request_key": r1["request_key"], "otp": otp}).json()
+    # 3. Verify PIN
+    ses = requests.Session()
+    r3 = ses.post("https://api-t2.fyers.in/vagator/v2/verify_pin_v2",
+                  json={"request_key": r2["request_key"], "identity_type": "pin", "identifier": b64(pin)}).json()
+    ses.headers.update({"authorization": f"Bearer {r3['data']['access_token']}"})
+    # 4. Exchange for v3 Auth Code & Access Token
+    r4 = ses.post("https://api-t1.fyers.in/api/v3/token", json={
+        "fyers_id": fy_id, "app_id": app_id[:-4], "redirect_uri": redirect_uri,
+        "appType": "100", "code_challenge": "", "state": "auto", "scope": "",
+        "nonce": "", "response_type": "code", "create_cookie": True
+    }).json()
+    auth_code = parse_qs(urlparse(r4["Url"]).query)["auth_code"][0]
+    session = fyersModel.SessionModel(client_id=app_id, secret_key=secret_id,
+                                      redirect_uri=redirect_uri, response_type="code",
+                                      grant_type="authorization_code")
+    session.set_token(auth_code)
+    token = session.generate_token()["access_token"]
+    json.dump({"date": today, "access_token": token}, open(TOKEN_FILE, "w"))
+    return token
+
+@app.route("/")
+def index():
+    return send_file("fyers_ohl_scanner.html")
+
+@app.route("/api/quotes")
+def api_quotes():
+    symbols = request.args.get("symbols", "")
+    token = get_auto_token()
+    fyers = fyersModel.FyersModel(client_id=os.environ["FYERS_APP_ID"], is_async=False, token=token, log_path="")
+    return jsonify(fyers.quotes(data={"symbols": symbols}))</pre>
+          <button type="button" id="copyCloudServerBtn" class="absolute top-2.5 right-2.5 px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-medium">
+            Copy Server Code
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: WATCHLIST SYMBOL MANAGER -->
+  <div id="watchlistModal" class="fixed inset-0 z-40 hidden bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl">
+      <div class="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between">
+        <h3 class="text-sm font-bold text-white">Customize Symbol Universe (NSE Large/Mid Cap &amp; MCX)</h3>
+        <button type="button" id="closeWatchlistModalBtn" class="text-slate-400 hover:text-white p-1">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="p-5 space-y-4 text-xs">
+        <div class="flex flex-col sm:flex-row gap-2">
+          <input type="text" id="newSymbolInput" placeholder="e.g. NSE:ZOMATO-EQ or MCX:GOLD26DECFUT" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 mono-num focus:outline-none focus:border-indigo-500" />
+          <select id="newSymbolSegment" aria-label="New Symbol Segment" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200">
+            <option value="LARGE">Large Cap</option>
+            <option value="MID">Mid Cap</option>
+            <option value="COMMODITY">MCX Commodity</option>
+          </select>
+          <button type="button" id="addSymbolBtn" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition">
+            Add Symbol
+          </button>
+        </div>
+
+        <div class="max-h-60 overflow-y-auto border border-slate-800 rounded-lg divide-y divide-slate-800/70 bg-slate-950/60" id="watchlistItemsContainer">
+          <!-- Populated by JS -->
+        </div>
+
+        <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+          <button type="button" id="resetDefaultSymbolsBtn" class="text-slate-400 hover:text-slate-200 underline">
+            Reset to Default Large &amp; Mid Cap List
+          </button>
+          <button type="button" id="doneWatchlistBtn" class="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium">
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Default Universe: Large Cap (Nifty 50), Mid Cap (Nifty Midcap 100 Liquid), and MCX Commodities
+    const DEFAULT_UNIVERSE = [
+      // Large Caps (Nifty 50)
+      { symbol: "NSE:RELIANCE-EQ", name: "Reliance Ind", segment: "LARGE", open: 1342.00, high: 1342.00, low: 1331.40, lp: 1333.85, prevClose: 1340.10, volume: 1845200 },
+      { symbol: "NSE:TCS-EQ", name: "TCS", segment: "LARGE", open: 4110.00, high: 4138.50, low: 4110.00, lp: 4134.20, prevClose: 4098.00, volume: 612400 },
+      { symbol: "NSE:HDFCBANK-EQ", name: "HDFC Bank", segment: "LARGE", open: 1745.00, high: 1759.80, low: 1745.00, lp: 1756.90, prevClose: 1739.50, volume: 3290100 },
+      { symbol: "NSE:ICICIBANK-EQ", name: "ICICI Bank", segment: "LARGE", open: 1292.50, high: 1292.50, low: 1281.10, lp: 1283.40, prevClose: 1290.00, volume: 2180400 },
+      { symbol: "NSE:INFY-EQ", name: "Infosys", segment: "LARGE", open: 1860.00, high: 1874.20, low: 1860.00, lp: 1871.60, prevClose: 1852.30, volume: 1420900 },
+      { symbol: "NSE:SBIN-EQ", name: "State Bank of India", segment: "LARGE", open: 842.00, high: 842.00, low: 833.25, lp: 834.90, prevClose: 840.50, volume: 4120000 },
+      { symbol: "NSE:BHARTIARTL-EQ", name: "Bharti Airtel", segment: "LARGE", open: 1668.00, high: 1682.40, low: 1668.00, lp: 1679.10, prevClose: 1662.00, volume: 985000 },
+      { symbol: "NSE:LT-EQ", name: "Larsen & Toubro", segment: "LARGE", open: 3620.00, high: 3638.00, low: 3611.00, lp: 3629.50, prevClose: 3615.00, volume: 492000 },
+      { symbol: "NSE:TATAMOTORS-EQ", name: "Tata Motors", segment: "LARGE", open: 894.50, high: 894.50, low: 882.10, lp: 884.75, prevClose: 892.00, volume: 3890000 },
+      { symbol: "NSE:AXISBANK-EQ", name: "Axis Bank", segment: "LARGE", open: 1188.00, high: 1196.40, low: 1184.20, lp: 1191.30, prevClose: 1185.00, volume: 1640000 },
+      { symbol: "NSE:SUNPHARMA-EQ", name: "Sun Pharma", segment: "LARGE", open: 1848.00, high: 1865.00, low: 1848.00, lp: 1861.40, prevClose: 1842.00, volume: 734000 },
+      { symbol: "NSE:NTPC-EQ", name: "NTPC", segment: "LARGE", open: 414.20, high: 414.20, low: 409.50, lp: 410.30, prevClose: 413.80, volume: 2950000 },
+      { symbol: "NSE:BAJFINANCE-EQ", name: "Bajaj Finance", segment: "LARGE", open: 7120.00, high: 7120.00, low: 7058.00, lp: 7069.50, prevClose: 7112.00, volume: 540200 },
+      { symbol: "NSE:M&M-EQ", name: "Mahindra & Mahindra", segment: "LARGE", open: 3015.00, high: 3052.80, low: 3015.00, lp: 3048.90, prevClose: 3004.00, volume: 1120500 },
+      { symbol: "NSE:BEL-EQ", name: "Bharat Electronics", segment: "LARGE", open: 298.50, high: 303.40, low: 298.50, lp: 302.60, prevClose: 297.10, volume: 5640000 },
+      { symbol: "NSE:TRENT-EQ", name: "Trent", segment: "LARGE", open: 7450.00, high: 7450.00, low: 7362.00, lp: 7378.00, prevClose: 7440.00, volume: 389000 },
+      { symbol: "NSE:MARUTI-EQ", name: "Maruti Suzuki", segment: "LARGE", open: 12150.00, high: 12210.00, low: 12120.00, lp: 12185.00, prevClose: 12140.00, volume: 215000 },
+      { symbol: "NSE:HINDALCO-EQ", name: "Hindalco", segment: "LARGE", open: 688.00, high: 696.20, low: 688.00, lp: 694.80, prevClose: 685.50, volume: 2410000 },
+      { symbol: "NSE:ITC-EQ", name: "ITC", segment: "LARGE", open: 486.00, high: 488.50, low: 484.90, lp: 487.10, prevClose: 485.80, volume: 3110000 },
+      { symbol: "NSE:HAL-EQ", name: "Hindustan Aeronautics", segment: "LARGE", open: 4420.00, high: 4465.00, low: 4410.00, lp: 4452.00, prevClose: 4415.00, volume: 680000 },
+
+      // Mid Caps (Nifty Midcap 100 Leaders)
+      { symbol: "NSE:PERSISTENT-EQ", name: "Persistent Systems", segment: "MID", open: 5640.00, high: 5718.00, low: 5640.00, lp: 5709.50, prevClose: 5615.00, volume: 482000 },
+      { symbol: "NSE:COFORGE-EQ", name: "Coforge", segment: "MID", open: 7820.00, high: 7915.00, low: 7820.00, lp: 7898.00, prevClose: 7790.00, volume: 319000 },
+      { symbol: "NSE:DIXON-EQ", name: "Dixon Technologies", segment: "MID", open: 15240.00, high: 15240.00, low: 15035.00, lp: 15068.00, prevClose: 15210.00, volume: 274000 },
+      { symbol: "NSE:POLYCAB-EQ", name: "Polycab India", segment: "MID", open: 6890.00, high: 6890.00, low: 6795.00, lp: 6812.00, prevClose: 6880.00, volume: 312000 },
+      { symbol: "NSE:FEDERALBNK-EQ", name: "Federal Bank", segment: "MID", open: 204.50, high: 207.80, low: 204.50, lp: 207.15, prevClose: 203.80, volume: 6420000 },
+      { symbol: "NSE:INDHOTEL-EQ", name: "Indian Hotels", segment: "MID", open: 718.00, high: 729.40, low: 718.00, lp: 727.80, prevClose: 715.20, volume: 1950000 },
+      { symbol: "NSE:CUMMINSIND-EQ", name: "Cummins India", segment: "MID", open: 3590.00, high: 3590.00, low: 3542.00, lp: 3551.00, prevClose: 3585.00, volume: 412000 },
+      { symbol: "NSE:LUPIN-EQ", name: "Lupin", segment: "MID", open: 2180.00, high: 2214.00, low: 2180.00, lp: 2208.50, prevClose: 2172.00, volume: 890000 },
+      { symbol: "NSE:VOLTAS-EQ", name: "Voltas", segment: "MID", open: 1765.00, high: 1765.00, low: 1738.40, lp: 1742.10, prevClose: 1762.00, volume: 1120000 },
+      { symbol: "NSE:MAXHEALTH-EQ", name: "Max Healthcare", segment: "MID", open: 1012.00, high: 1028.50, low: 1012.00, lp: 1025.90, prevClose: 1008.00, volume: 1340000 },
+      { symbol: "NSE:OBEROIRLTY-EQ", name: "Oberoi Realty", segment: "MID", open: 1985.00, high: 1985.00, low: 1952.00, lp: 1958.40, prevClose: 1980.00, volume: 520000 },
+      { symbol: "NSE:ASHOKLEY-EQ", name: "Ashok Leyland", segment: "MID", open: 226.40, high: 226.40, low: 223.10, lp: 223.85, prevClose: 226.00, volume: 4890000 },
+      { symbol: "NSE:BHARATFORG-EQ", name: "Bharat Forge", segment: "MID", open: 1425.00, high: 1438.00, low: 1419.00, lp: 1431.00, prevClose: 1422.00, volume: 610000 },
+      { symbol: "NSE:IDFCFIRSTB-EQ", name: "IDFC First Bank", segment: "MID", open: 68.40, high: 69.10, low: 68.10, lp: 68.75, prevClose: 68.30, volume: 14200000 },
+      { symbol: "NSE:MPHASIS-EQ", name: "Mphasis", segment: "MID", open: 3090.00, high: 3125.00, low: 3082.00, lp: 3114.00, prevClose: 3085.00, volume: 380000 },
+      { symbol: "NSE:ASTRAL-EQ", name: "Astral", segment: "MID", open: 1840.00, high: 1840.00, low: 1815.00, lp: 1821.50, prevClose: 1838.00, volume: 295000 },
+      { symbol: "NSE:AUROPHARMA-EQ", name: "Aurobindo Pharma", segment: "MID", open: 1392.00, high: 1411.00, low: 1392.00, lp: 1408.20, prevClose: 1388.00, volume: 910000 },
+      { symbol: "NSE:CONCOR-EQ", name: "Container Corp", segment: "MID", open: 845.00, high: 851.00, low: 841.50, lp: 847.20, prevClose: 844.00, volume: 720000 },
+
+      // MCX Commodities
+      { symbol: "MCX:GOLD26DECFUT", name: "Gold Futures", segment: "COMMODITY", open: 78450.00, high: 78720.00, low: 78450.00, lp: 78690.00, prevClose: 78310.00, volume: 4210 },
+      { symbol: "MCX:SILVER26DECFUT", name: "Silver Futures", segment: "COMMODITY", open: 94800.00, high: 94800.00, low: 94120.00, lp: 94210.00, prevClose: 94750.00, volume: 6890 },
+      { symbol: "MCX:CRUDEOIL26NOVFUT", name: "Crude Oil Futures", segment: "COMMODITY", open: 5890.00, high: 5890.00, low: 5824.00, lp: 5836.00, prevClose: 5882.00, volume: 15400 },
+      { symbol: "MCX:NATURALGAS26NOVFUT", name: "Natural Gas Futures", segment: "COMMODITY", open: 234.50, high: 239.80, low: 234.50, lp: 238.90, prevClose: 233.10, volume: 28900 },
+      { symbol: "MCX:COPPER26NOVFUT", name: "Copper Futures", segment: "COMMODITY", open: 842.00, high: 846.50, low: 842.00, lp: 845.70, prevClose: 840.20, volume: 5120 },
+      { symbol: "MCX:ZINC26NOVFUT", name: "Zinc Futures", segment: "COMMODITY", open: 284.50, high: 284.50, low: 281.90, lp: 282.40, prevClose: 284.10, volume: 3890 },
+      { symbol: "MCX:ALUMINIUM26NOVFUT", name: "Aluminium Futures", segment: "COMMODITY", open: 241.00, high: 242.80, low: 240.40, lp: 241.90, prevClose: 240.80, volume: 2910 }
+    ];
+
+    // Application State
+    let state = {
+      universe: JSON.parse(JSON.stringify(DEFAULT_UNIVERSE)),
+      activeSegment: "ALL_EQ", // ALL_EQ, LARGE, MID, COMMODITY
+      polarity: "prompt",      // "prompt" => Open=High Bullish, Open=Low Bearish | "classic" => Open=Low Bullish, Open=High Bearish
+      tolerancePct: 0,         // 0, 0.03, 0.05, 0.10
+      searchQuery: "",
+      showNeutral: false,
+      isLiveApi: false,
+      lastScanTime: "09:16:02 IST",
+      autoScanTriggeredToday: false,
+      appId: "",
+      accessToken: "",
+      endpointUrl: "https://api-t1.fyers.in/data/quotes"
+    };
+
+    // Load saved settings safely
+    function loadSavedState() {
+      try {
+        const savedUniverse = localStorage.getItem("fyers_ohl_universe_v1");
+        if (savedUniverse) {
+          const parsed = JSON.parse(savedUniverse);
+          if (Array.isArray(parsed) && parsed.length > 0) state.universe = parsed;
+        }
+        const savedCreds = localStorage.getItem("fyers_ohl_creds_v1");
+        if (savedCreds) {
+          const creds = JSON.parse(savedCreds);
+          if (creds.appId) state.appId = creds.appId;
+          if (creds.endpointUrl) state.endpointUrl = creds.endpointUrl;
+          document.getElementById("fyersAppId").value = state.appId;
+          document.getElementById("fyersEndpointUrl").value = state.endpointUrl;
+        }
+      } catch (e) {
+        // Ignore storage errors in sandboxed iframe
+      }
+    }
+
+    function saveUniverseState() {
+      try {
+        localStorage.setItem("fyers_ohl_universe_v1", JSON.stringify(state.universe));
+      } catch (e) {}
+    }
+
+    function showToast(msg) {
+      const box = document.getElementById("toastBox");
+      document.getElementById("toastText").textContent = msg;
+      box.classList.remove("hidden");
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => {
+        box.classList.add("hidden");
+      }, 3200);
+    }
+
+    function copyTextToClipboard(text, successMsg) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => showToast(successMsg)).catch(() => fallbackCopy(text, successMsg));
+      } else {
+        fallbackCopy(text, successMsg);
+      }
+    }
+
+    function fallbackCopy(text, successMsg) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+        showToast(successMsg);
+      } catch (e) {
+        showToast("Unable to copy automatically");
+      }
+      document.body.removeChild(ta);
+    }
+
+    // Check Open = High and Open = Low within selected tolerance %
+    function evaluateOHL(item, tolerancePct) {
+      const o = Number(item.open);
+      const h = Number(item.high);
+      const l = Number(item.low);
+      if (!o || !h || !l) return { isOpenHigh: false, isOpenLow: false };
+
+      const highDiffPct = Math.abs(h - o) / o * 100;
+      const lowDiffPct = Math.abs(o - l) / o * 100;
+
+      return {
+        isOpenHigh: highDiffPct <= tolerancePct && h > l,
+        isOpenLow: lowDiffPct <= tolerancePct && h > l
+      };
+    }
+
+    function formatNumber(n) {
+      return Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function formatVolume(v) {
+      const num = Number(v) || 0;
+      if (num >= 10000000) return (num / 10000000).toFixed(2) + " Cr";
+      if (num >= 100000) return (num / 100000).toFixed(2) + " L";
+      if (num >= 1000) return (num / 1000).toFixed(1) + " K";
+      return String(num);
+    }
+
+    function getFilteredUniverse() {
+      return state.universe.filter(item => {
+        if (state.activeSegment === "ALL_EQ" && item.segment === "COMMODITY") return false;
+        if (state.activeSegment === "LARGE" && item.segment !== "LARGE") return false;
+        if (state.activeSegment === "MID" && item.segment !== "MID") return false;
+        if (state.activeSegment === "COMMODITY" && item.segment !== "COMMODITY") return false;
+
+        if (state.searchQuery.trim() !== "") {
+          const q = state.searchQuery.trim().toLowerCase();
+          return item.symbol.toLowerCase().includes(q) || (item.name && item.name.toLowerCase().includes(q));
+        }
+        return true;
+      });
+    }
+
+    function updateSegmentCounts() {
+      const largeCount = state.universe.filter(x => x.segment === "LARGE").length;
+      const midCount = state.universe.filter(x => x.segment === "MID").length;
+      const commCount = state.universe.filter(x => x.segment === "COMMODITY").length;
+
+      document.getElementById("countAllEq").textContent = largeCount + midCount;
+      document.getElementById("countLarge").textContent = largeCount;
+      document.getElementById("countMid").textContent = midCount;
+      document.getElementById("countComm").textContent = commCount;
+      document.getElementById("totalUniverseCount").textContent = state.universe.length;
+    }
+
+    function updatePolarityBadges() {
+      const isPromptMode = state.polarity === "prompt";
+      const openHighBadge = document.getElementById("kpiOpenHighBadge");
+      const openLowBadge = document.getElementById("kpiOpenLowBadge");
+      const openHighBiasPill = document.getElementById("openHighBiasPill");
+      const openLowBiasPill = document.getElementById("openLowBiasPill");
+      const openHighHeader = document.getElementById("openHighHeader");
+      const openLowHeader = document.getElementById("openLowHeader");
+      const openHighDot = document.getElementById("openHighDot");
+      const openLowDot = document.getElementById("openLowDot");
+      const kpiOpenHighCount = document.getElementById("kpiOpenHighCount");
+      const kpiOpenLowCount = document.getElementById("kpiOpenLowCount");
+
+      if (isPromptMode) {
+        // User Prompt Mode: Open = High is Bullish, Open = Low is Bearish
+        openHighBadge.textContent = "Bullish Prob.";
+        openHighBadge.className = "px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30";
+        openHighBiasPill.textContent = "Bullish Probability";
+        openHighBiasPill.className = "px-2 py-0.5 text-[11px] font-semibold rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+        openHighHeader.className = "px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-emerald-950/20";
+        openHighDot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400";
+        kpiOpenHighCount.className = "text-xl font-bold mono-num text-emerald-400 mt-0.5";
+
+        openLowBadge.textContent = "Bearish Prob.";
+        openLowBadge.className = "px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/30";
+        openLowBiasPill.textContent = "Bearish Probability";
+        openLowBiasPill.className = "px-2 py-0.5 text-[11px] font-semibold rounded bg-rose-500/20 text-rose-300 border border-rose-500/30";
+        openLowHeader.className = "px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-rose-950/20";
+        openLowDot.className = "w-2.5 h-2.5 rounded-full bg-rose-400";
+        kpiOpenLowCount.className = "text-xl font-bold mono-num text-rose-400 mt-0.5";
+      } else {
+        // Classic OHL Mode: Open = Low is Bullish, Open = High is Bearish
+        openHighBadge.textContent = "Bearish (Classic OHL)";
+        openHighBadge.className = "px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-500/15 text-rose-300 border border-rose-500/30";
+        openHighBiasPill.textContent = "Bearish (Sellers from Open)";
+        openHighBiasPill.className = "px-2 py-0.5 text-[11px] font-semibold rounded bg-rose-500/20 text-rose-300 border border-rose-500/30";
+        openHighHeader.className = "px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-rose-950/20";
+        openHighDot.className = "w-2.5 h-2.5 rounded-full bg-rose-400";
+        kpiOpenHighCount.className = "text-xl font-bold mono-num text-rose-400 mt-0.5";
+
+        openLowBadge.textContent = "Bullish (Classic OHL)";
+        openLowBadge.className = "px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30";
+        openLowBiasPill.textContent = "Bullish (Buyers from Open)";
+        openLowBiasPill.className = "px-2 py-0.5 text-[11px] font-semibold rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+        openLowHeader.className = "px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-emerald-950/20";
+        openLowDot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400";
+        kpiOpenLowCount.className = "text-xl font-bold mono-num text-emerald-400 mt-0.5";
+      }
+    }
+
+    function renderDashboard() {
+      updateSegmentCounts();
+      updatePolarityBadges();
+
+      const filtered = getFilteredUniverse();
+      const openHighList = [];
+      const openLowList = [];
+      const neutralList = [];
+
+      filtered.forEach(item => {
+        const chgPct = item.prevClose ? ((item.lp - item.prevClose) / item.prevClose) * 100 : 0;
+        const enriched = { ...item, chgPct };
+        const { isOpenHigh, isOpenLow } = evaluateOHL(item, state.tolerancePct);
+        if (isOpenHigh) openHighList.push(enriched);
+        else if (isOpenLow) openLowList.push(enriched);
+        else neutralList.push(enriched);
+      });
+
+      // Update KPIs
+      document.getElementById("kpiTotalScanned").textContent = filtered.length;
+      document.getElementById("kpiOpenHighCount").textContent = openHighList.length;
+      document.getElementById("kpiOpenLowCount").textContent = openLowList.length;
+      document.getElementById("openHighCountPill").textContent = openHighList.length;
+      document.getElementById("openLowCountPill").textContent = openLowList.length;
+      document.getElementById("neutralCountBadge").textContent = neutralList.length;
+      document.getElementById("kpiLastScanTime").textContent = state.lastScanTime;
+
+      const segLabels = {
+        ALL_EQ: "Large + Mid Cap",
+        LARGE: "Large Cap (Nifty 50)",
+        MID: "Mid Cap (Nifty Midcap)",
+        COMMODITY: "MCX Commodities"
+      };
+      document.getElementById("kpiSegmentLabel").textContent = segLabels[state.activeSegment] || "Custom";
+
+      // Render Open = High Table
+      const ohBody = document.getElementById("openHighTableBody");
+      if (openHighList.length === 0) {
+        ohBody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-500">No instruments matching Open = High in current filter.</td></tr>`;
+      } else {
+        ohBody.innerHTML = openHighList.map(item => {
+          const tickerShort = item.symbol.replace(/^NSE:|^MCX:/, "").replace(/-EQ$/, "");
+          const capBadge = item.segment === "LARGE" ? "L-Cap" : item.segment === "MID" ? "M-Cap" : "MCX";
+          const chgColor = item.chgPct >= 0 ? "text-emerald-400" : "text-rose-400";
+          const sign = item.chgPct > 0 ? "+" : "";
+          return `
+            <tr class="hover:bg-slate-800/40 transition">
+              <td class="py-2.5 px-3">
+                <div class="flex items-center gap-1.5">
+                  <span class="font-bold text-white mono-num">${tickerShort}</span>
+                  <span class="px-1.5 py-0.5 text-[10px] rounded bg-slate-800 text-slate-400 border border-slate-700">${capBadge}</span>
+                </div>
+                <div class="text-[11px] text-slate-400 truncate max-w-[140px]">${item.name || item.symbol}</div>
+              </td>
+              <td class="py-2.5 px-2.5 text-right mono-num">
+                <span class="font-semibold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">${formatNumber(item.open)}</span>
+              </td>
+              <td class="py-2.5 px-2.5 text-right mono-num text-slate-300">${formatNumber(item.low)}</td>
+              <td class="py-2.5 px-2.5 text-right mono-num font-semibold text-white">${formatNumber(item.lp)}</td>
+              <td class="py-2.5 px-2.5 text-right mono-num font-medium ${chgColor}">${sign}${item.chgPct.toFixed(2)}%</td>
+              <td class="py-2.5 px-3 text-right mono-num text-slate-400">${formatVolume(item.volume)}</td>
+            </tr>
+          `;
+        }).join("");
+      }
+
+      // Render Open = Low Table
+      const olBody = document.getElementById("openLowTableBody");
+      if (openLowList.length === 0) {
+        olBody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-500">No instruments matching Open = Low in current filter.</td></tr>`;
+      } else {
+        olBody.innerHTML = openLowList.map(item => {
+          const tickerShort = item.symbol.replace(/^NSE:|^MCX:/, "").replace(/-EQ$/, "");
+          const capBadge = item.segment === "LARGE" ? "L-Cap" : item.segment === "MID" ? "M-Cap" : "MCX";
+          const chgColor = item.chgPct >= 0 ? "text-emerald-400" : "text-rose-400";
+          const sign = item.chgPct > 0 ? "+" : "";
+          return `
+            <tr class="hover:bg-slate-800/40 transition">
+              <td class="py-2.5 px-3">
+                <div class="flex items-center gap-1.5">
+                  <span class="font-bold text-white mono-num">${tickerShort}</span>
+                  <span class="px-1.5 py-0.5 text-[10px] rounded bg-slate-800 text-slate-400 border border-slate-700">${capBadge}</span>
+                </div>
+                <div class="text-[11px] text-slate-400 truncate max-w-[140px]">${item.name || item.symbol}</div>
+              </td>
+              <td class="py-2.5 px-2.5 text-right mono-num">
+                <span class="font-semibold text-sky-300 bg-sky-500/10 border border-sky-500/20 px-1.5 py-0.5 rounded">${formatNumber(item.open)}</span>
+              </td>
+              <td class="py-2.5 px-2.5 text-right mono-num text-slate-300">${formatNumber(item.high)}</td>
+              <td class="py-2.5 px-2.5 text-right mono-num font-semibold text-white">${formatNumber(item.lp)}</td>
+              <td class="py-2.5 px-2.5 text-right mono-num font-medium ${chgColor}">${sign}${item.chgPct.toFixed(2)}%</td>
+              <td class="py-2.5 px-3 text-right mono-num text-slate-400">${formatVolume(item.volume)}</td>
+            </tr>
+          `;
+        }).join("");
+      }
+
+      // Render Neutral / Other Universe Table
+      const neuBody = document.getElementById("neutralTableBody");
+      if (neutralList.length === 0) {
+        neuBody.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-slate-500">All filtered instruments matched either Open=High or Open=Low.</td></tr>`;
+      } else {
+        neuBody.innerHTML = neutralList.map(item => {
+          const chgColor = item.chgPct >= 0 ? "text-emerald-400" : "text-rose-400";
+          const sign = item.chgPct > 0 ? "+" : "";
+          return `
+            <tr class="hover:bg-slate-800/30 transition">
+              <td class="py-2 px-3 mono-num font-medium text-slate-200">${item.symbol}</td>
+              <td class="py-2 px-2.5 text-slate-400">${item.segment}</td>
+              <td class="py-2 px-2.5 text-right mono-num text-slate-300">${formatNumber(item.open)}</td>
+              <td class="py-2 px-2.5 text-right mono-num text-slate-300">${formatNumber(item.high)}</td>
+              <td class="py-2 px-2.5 text-right mono-num text-slate-300">${formatNumber(item.low)}</td>
+              <td class="py-2 px-2.5 text-right mono-num font-semibold text-white">${formatNumber(item.lp)}</td>
+              <td class="py-2 px-2.5 text-right mono-num ${chgColor}">${sign}${item.chgPct.toFixed(2)}%</td>
+              <td class="py-2 px-3 text-right mono-num text-slate-400">${formatVolume(item.volume)}</td>
+            </tr>
+          `;
+        }).join("");
+      }
+
+      // Save current lists for copy/export
+      window.__currentOpenHigh = openHighList;
+      window.__currentOpenLow = openLowList;
+    }
+
+    // Fetch Live Quotes from Fyers API v3 (Chunked in batches of 50 symbols)
+    async function fetchLiveFyersQuotes() {
+      const appId = document.getElementById("fyersAppId").value.trim() || state.appId;
+      const accessToken = document.getElementById("fyersAccessToken").value.trim() || state.accessToken;
+      const endpoint = document.getElementById("fyersEndpointUrl").value.trim() || state.endpointUrl;
+      const statusBox = document.getElementById("apiStatusAlert");
+
+      if (!appId || !accessToken) {
+        // If no live credentials configured, jitter simulated prices slightly or open modal
+        simulateRefreshScan();
+        return;
+      }
+
+      state.appId = appId;
+      state.accessToken = accessToken;
+      state.endpointUrl = endpoint;
+
+      try {
+        localStorage.setItem("fyers_ohl_creds_v1", JSON.stringify({ appId, endpointUrl: endpoint }));
+      } catch (e) {}
+
+      const symbols = state.universe.map(u => u.symbol);
+      const chunks = [];
+      for (let i = 0; i < symbols.length; i += 50) {
+        chunks.push(symbols.slice(i, i + 50));
+      }
+
+      try {
+        statusBox.className = "rounded-lg p-2.5 text-xs border bg-indigo-950/50 border-indigo-500/40 text-indigo-200";
+        statusBox.textContent = `Requesting ${symbols.length} symbols from Fyers API v3...`;
+        statusBox.classList.remove("hidden");
+
+        const quoteMap = {};
+        for (const batch of chunks) {
+          const url = `${endpoint}?symbols=${encodeURIComponent(batch.join(","))}`;
+          const resp = await fetch(url, {
+            method: "GET",
+            headers: {
+              "Authorization": `${appId}:${accessToken}`
+            }
+          });
+          const data = await resp.json();
+          if (data.s !== "ok" || !Array.isArray(data.d)) {
+            throw new Error(data.message || "Invalid response from Fyers Quotes API");
+          }
+          data.d.forEach(entry => {
+            const sym = entry.n || (entry.v && entry.v.symbol);
+            if (sym && entry.v) quoteMap[sym] = entry.v;
+          });
+        }
+
+        // Update state universe with live values
+        state.universe = state.universe.map(item => {
+          const v = quoteMap[item.symbol];
+          if (!v) return item;
+          return {
+            ...item,
+            open: Number(v.open_price) || item.open,
+            high: Number(v.high_price) || item.high,
+            low: Number(v.low_price) || item.low,
+            lp: Number(v.lp) || item.lp,
+            prevClose: Number(v.prev_close_price) || item.prevClose,
+            volume: Number(v.volume) || item.volume
+          };
+        });
+
+        state.isLiveApi = true;
+        state.lastScanTime = getIstTimeString() + " IST";
+        const badge = document.getElementById("dataSourceBadge");
+        badge.textContent = "Live Fyers API v3";
+        badge.className = "px-2 py-0.5 text-[11px] font-medium rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30";
+
+        statusBox.className = "rounded-lg p-2.5 text-xs border bg-emerald-950/50 border-emerald-500/40 text-emerald-200";
+        statusBox.textContent = `Connected! Updated ${Object.keys(quoteMap).length} symbols from Fyers API v3.`;
+        renderDashboard();
+        showToast("Updated live quotes from Fyers API v3");
+      } catch (err) {
+        statusBox.className = "rounded-lg p-2.5 text-xs border bg-rose-950/60 border-rose-500/40 text-rose-200";
+        statusBox.textContent = `API Connection Notice: ${err.message}. If blocked by browser CORS, switch to Tab 2 (Local Python Script) or check your token.`;
+        statusBox.classList.remove("hidden");
+        showToast("Fyers API fetch failed — check Fyers API Setup modal");
+      }
+    }
+
+    function simulateRefreshScan() {
+      // Slightly update LTP & volume while preserving realistic 1-min OHL setups
+      state.universe = state.universe.map(item => {
+        const { isOpenHigh, isOpenLow } = evaluateOHL(item, 0);
+        const tick = Number((item.open * 0.0008 * (Math.random() - 0.48)).toFixed(2));
+        let newLp = Number((item.lp + tick).toFixed(2));
+        let newHigh = item.high;
+        let newLow = item.low;
+        if (isOpenHigh) {
+          newLp = Math.min(item.open, Math.max(item.low, newLp));
+          newLow = Math.min(item.low, newLp);
+        } else if (isOpenLow) {
+          newLp = Math.max(item.open, Math.min(item.high, newLp));
+          newHigh = Math.max(item.high, newLp);
+        }
+        return {
+          ...item,
+          high: newHigh,
+          low: newLow,
+          lp: newLp,
+          volume: item.volume + Math.floor(Math.random() * 4500)
+        };
+      });
+      state.lastScanTime = getIstTimeString() + " IST";
+      renderDashboard();
+      showToast("Scanned 1-min Open=High & Open=Low setups (" + state.lastScanTime + ")");
+    }
+
+    function getIstDateParts() {
+      const now = new Date();
+      const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+      const istDate = new Date(utcMs + (5.5 * 3600000));
+      return {
+        hours: istDate.getHours(),
+        minutes: istDate.getMinutes(),
+        seconds: istDate.getSeconds()
+      };
+    }
+
+    function getIstTimeString() {
+      const { hours, minutes, seconds } = getIstDateParts();
+      const pad = n => String(n).padStart(2, "0");
+      return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+    }
+
+    function updateClockAndAutoTrigger() {
+      const { hours, minutes, seconds } = getIstDateParts();
+      const pad = n => String(n).padStart(2, "0");
+      document.getElementById("istClock").textContent = `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+
+      // Determine target 1-min post-open time (09:16:00 for Equities, 09:01:00 for MCX)
+      const targetHour = 9;
+      const targetMin = state.activeSegment === "COMMODITY" ? 1 : 16;
+      const targetLabel = state.activeSegment === "COMMODITY" ? "09:01:00 IST (MCX)" : "09:16:00 IST (NSE)";
+      document.getElementById("kpiTriggerCountdown").textContent = targetLabel;
+
+      const autoEnabled = document.getElementById("autoScanToggle").checked;
+      if (autoEnabled && hours === targetHour && minutes === targetMin && seconds === 0 && !state.autoScanTriggeredToday) {
+        state.autoScanTriggeredToday = true;
+        fetchLiveFyersQuotes();
+      }
+      if (hours === 0 && minutes === 0) {
+        state.autoScanTriggeredToday = false;
+      }
+    }
+
+    function renderWatchlistModal() {
+      const container = document.getElementById("watchlistItemsContainer");
+      container.innerHTML = state.universe.map((item, idx) => `
+        <div class="px-3 py-2 flex items-center justify-between hover:bg-slate-900/80">
+          <div class="flex items-center gap-2">
+            <span class="mono-num font-semibold text-slate-200">${item.symbol}</span>
+            <span class="px-1.5 py-0.5 text-[10px] rounded bg-slate-800 text-slate-400">${item.segment}</span>
+          </div>
+          <button type="button" data-remove-idx="${idx}" class="remove-sym-btn text-rose-400 hover:text-rose-300 text-[11px] font-medium">
+            Remove
+          </button>
+        </div>
+      `).join("");
+
+      container.querySelectorAll(".remove-sym-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const i = Number(btn.getAttribute("data-remove-idx"));
+          state.universe.splice(i, 1);
+          saveUniverseState();
+          renderWatchlistModal();
+          renderDashboard();
+        });
+      });
+    }
+
+    function exportMatchesToCsv() {
+      const oh = window.__currentOpenHigh || [];
+      const ol = window.__currentOpenLow || [];
+      const rows = [
+        ["Signal_Condition", "Symbol", "Segment", "Open", "High", "Low", "LTP", "Change_Pct", "Volume"]
+      ];
+      oh.forEach(x => rows.push(["OPEN_EQUALS_HIGH", x.symbol, x.segment, x.open, x.high, x.low, x.lp, x.chgPct.toFixed(2), x.volume]));
+      ol.forEach(x => rows.push(["OPEN_EQUALS_LOW", x.symbol, x.segment, x.open, x.high, x.low, x.lp, x.chgPct.toFixed(2), x.volume]));
+
+      const csvContent = rows.map(r => r.join(",")).join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `fyers_ohl_scan_${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast("Exported Open=High & Open=Low matches to CSV");
+    }
+
+    // Wire up all event listeners
+    window.addEventListener("DOMContentLoaded", () => {
+      loadSavedState();
+      renderDashboard();
+      updateClockAndAutoTrigger();
+      if (window.__clockInterval) clearInterval(window.__clockInterval);
+      window.__clockInterval = setInterval(updateClockAndAutoTrigger, 1000);
+
+      // Segment buttons
+      document.querySelectorAll(".segment-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          state.activeSegment = btn.getAttribute("data-segment");
+          document.querySelectorAll(".segment-btn").forEach(b => {
+            b.className = "segment-btn px-3 py-1.5 rounded-lg text-xs font-medium transition bg-slate-800/80 text-slate-300 hover:bg-slate-800";
+          });
+          btn.className = "segment-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition bg-indigo-600 text-white shadow-sm";
+          renderDashboard();
+        });
+      });
+
+      // Polarity & Tolerance & Search
+      document.getElementById("polaritySelect").addEventListener("change", e => {
+        state.polarity = e.target.value;
+        renderDashboard();
+      });
+
+      document.getElementById("toleranceSelect").addEventListener("change", e => {
+        state.tolerancePct = Number(e.target.value);
+        renderDashboard();
+      });
+
+      document.getElementById("searchInput").addEventListener("input", e => {
+        state.searchQuery = e.target.value;
+        renderDashboard();
+      });
+
+      // Scan Now
+      document.getElementById("scanNowBtn").addEventListener("click", () => {
+        fetchLiveFyersQuotes();
+      });
+
+      // Copy symbol buttons
+      document.getElementById("copyOpenHighBtn").addEventListener("click", () => {
+        const syms = (window.__currentOpenHigh || []).map(x => x.symbol).join(",");
+        if (!syms) return showToast("No Open=High symbols to copy");
+        copyTextToClipboard(syms, `Copied ${(window.__currentOpenHigh || []).length} Open=High symbols`);
+      });
+
+      document.getElementById("copyOpenLowBtn").addEventListener("click", () => {
+        const syms = (window.__currentOpenLow || []).map(x => x.symbol).join(",");
+        if (!syms) return showToast("No Open=Low symbols to copy");
+        copyTextToClipboard(syms, `Copied ${(window.__currentOpenLow || []).length} Open=Low symbols`);
+      });
+
+      // Export CSV
+      document.getElementById("exportCsvBtn").addEventListener("click", exportMatchesToCsv);
+
+      // Toggle Neutral Section
+      document.getElementById("toggleNeutralBtn").addEventListener("click", () => {
+        state.showNeutral = !state.showNeutral;
+        const body = document.getElementById("neutralSectionBody");
+        const chev = document.getElementById("neutralChevron");
+        if (state.showNeutral) {
+          body.classList.remove("hidden");
+          chev.classList.add("rotate-180");
+        } else {
+          body.classList.add("hidden");
+          chev.classList.remove("rotate-180");
+        }
+      });
+
+      // API Modal
+      const apiModal = document.getElementById("apiModal");
+      document.getElementById("openApiModalBtn").addEventListener("click", () => {
+        apiModal.classList.remove("hidden");
+      });
+      document.getElementById("closeApiModalBtn").addEventListener("click", () => {
+        apiModal.classList.add("hidden");
+      });
+
+      // Modal Tabs
+      const tabBrowserBtn = document.getElementById("tabBrowserApiBtn");
+      const tabPythonBtn = document.getElementById("tabPythonCodeBtn");
+      const tabCloudBtn = document.getElementById("tabCloudHostBtn");
+      const tabBrowserContent = document.getElementById("tabBrowserApiContent");
+      const tabPythonContent = document.getElementById("tabPythonCodeContent");
+      const tabCloudContent = document.getElementById("tabCloudHostContent");
+
+      function switchModalTab(activeBtn, activeContent) {
+        [tabBrowserBtn, tabPythonBtn, tabCloudBtn].forEach(b => {
+          b.className = "pb-2.5 border-b-2 border-transparent text-slate-400 hover:text-slate-200";
+        });
+        [tabBrowserContent, tabPythonContent, tabCloudContent].forEach(c => c.classList.add("hidden"));
+        activeBtn.className = "pb-2.5 border-b-2 border-indigo-500 text-indigo-400";
+        activeContent.classList.remove("hidden");
+      }
+
+      tabBrowserBtn.addEventListener("click", () => switchModalTab(tabBrowserBtn, tabBrowserContent));
+      tabPythonBtn.addEventListener("click", () => switchModalTab(tabPythonBtn, tabPythonContent));
+      tabCloudBtn.addEventListener("click", () => switchModalTab(tabCloudBtn, tabCloudContent));
+
+      document.getElementById("copyCloudServerBtn").addEventListener("click", () => {
+        const code = document.getElementById("cloudServerCodeBlock").textContent;
+        copyTextToClipboard(code, "Copied auto-authenticating Flask server code");
+      });
+
+      document.getElementById("loadGithubJsonBtn").addEventListener("click", async () => {
+        const ghFeedEndpoint = [window.location.origin, window.location.pathname.replace(/\/[^/]*$/, ""), "/live_quotes", ".json"].join("");
+        document.getElementById("fyersEndpointUrl").value = ghFeedEndpoint;
+        document.getElementById("fyersAppId").value = "GITHUB_ACTIONS_AUTO_AUTH";
+        document.getElementById("fyersAccessToken").value = "GITHUB_SECRETS_TOKEN";
+        await fetchLiveFyersQuotes();
+      });
+
+      document.getElementById("triggerBackendAutoAuthBtn").addEventListener("click", async () => {
+        document.getElementById("fyersEndpointUrl").value = "/api/quotes";
+        document.getElementById("fyersAppId").value = "SERVER_AUTO_AUTH";
+        document.getElementById("fyersAccessToken").value = "SERVER_MANAGED_TOKEN";
+        await fetchLiveFyersQuotes();
+      });
+
+      document.getElementById("saveAndFetchApiBtn").addEventListener("click", () => {
+        fetchLiveFyersQuotes();
+      });
+
+      document.getElementById("useDemoDataBtn").addEventListener("click", () => {
+        state.isLiveApi = false;
+        const badge = document.getElementById("dataSourceBadge");
+        badge.textContent = "Demo 09:16 Snapshot";
+        badge.className = "px-2 py-0.5 text-[11px] font-medium rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30";
+        simulateRefreshScan();
+        apiModal.classList.add("hidden");
+      });
+
+      document.getElementById("copyPythonBtn").addEventListener("click", () => {
+        const code = document.getElementById("pythonCodeBlock").textContent;
+        copyTextToClipboard(code, "Copied Fyers API v3 Python script");
+      });
+
+      // Watchlist Modal
+      const wlModal = document.getElementById("watchlistModal");
+      document.getElementById("openWatchlistModalBtn").addEventListener("click", () => {
+        renderWatchlistModal();
+        wlModal.classList.remove("hidden");
+      });
+      document.getElementById("closeWatchlistModalBtn").addEventListener("click", () => {
+        wlModal.classList.add("hidden");
+      });
+      document.getElementById("doneWatchlistBtn").addEventListener("click", () => {
+        wlModal.classList.add("hidden");
+      });
+
+      document.getElementById("addSymbolBtn").addEventListener("click", () => {
+        const raw = document.getElementById("newSymbolInput").value.trim().toUpperCase();
+        const seg = document.getElementById("newSymbolSegment").value;
+        if (!raw) return showToast("Enter a valid Fyers symbol (e.g. NSE:BHEL-EQ)");
+        const formatted = raw.includes(":") ? raw : (seg === "COMMODITY" ? `MCX:${raw}` : `NSE:${raw}-EQ`);
+        if (state.universe.some(x => x.symbol === formatted)) {
+          return showToast(`${formatted} is already in the scanner universe`);
+        }
+        state.universe.unshift({
+          symbol: formatted,
+          name: formatted.split(":")[1] || formatted,
+          segment: seg,
+          open: 500.00,
+          high: 500.00,
+          low: 494.50,
+          lp: 496.20,
+          prevClose: 499.00,
+          volume: 250000
+        });
+        document.getElementById("newSymbolInput").value = "";
+        saveUniverseState();
+        renderWatchlistModal();
+        renderDashboard();
+        showToast(`Added ${formatted} to ${seg}`);
+      });
+
+      document.getElementById("resetDefaultSymbolsBtn").addEventListener("click", () => {
+        state.universe = JSON.parse(JSON.stringify(DEFAULT_UNIVERSE));
+        saveUniverseState();
+        renderWatchlistModal();
+        renderDashboard();
+        showToast("Reset universe to default Large Cap, Mid Cap & MCX list");
+      });
+    });
+  </script>
+</body>
+</html>
